@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Anonymní Hlasování</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #020617;
+      color: #f8fafc;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* POUZE DVĚ VELKÁ TLAČÍTKA PRO STUDENTY */
+    .voting-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    .vote-btn {
+      flex: 1;
+      width: 100%;
+      border-radius: 1.5rem;
+      border: 2px solid transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.1s ease, background-color 0.15s ease;
+      outline: none;
+    }
+
+    .vote-btn span {
+      font-size: clamp(3.5rem, 15vw, 6.5rem);
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      color: #ffffff;
+      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .vote-btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-pro {
+      background-color: #059669;
+      border-color: rgba(52, 211, 153, 0.4);
+      box-shadow: 0 10px 30px rgba(5, 150, 105, 0.35);
+    }
+    .btn-pro:hover { background-color: #10b981; }
+    .btn-pro:active { background-color: #047857; }
+
+    .btn-proti {
+      background-color: #dc2626;
+      border-color: rgba(248, 113, 113, 0.4);
+      box-shadow: 0 10px 30px rgba(220, 38, 38, 0.35);
+    }
+    .btn-proti:hover { background-color: #ef4444; }
+    .btn-proti:active { background-color: #b91c1c; }
+
+    /* ŽIVÉ VÝSLEDKY PO ODHLASOVÁNÍ */
+    .results-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 1.25rem;
+      gap: 1.25rem;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      flex: 1;
+      max-height: 70vh;
+    }
+
+    @media (min-width: 640px) {
+      .cards-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+      }
+    }
+
+    .result-card {
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 2px solid;
+      background-color: #0f172a;
+    }
+
+    .card-pro { border-color: rgba(16, 185, 129, 0.3); }
+    .card-pro.is-my-vote {
+      background-color: rgba(6, 78, 59, 0.4);
+      border-color: #34d399;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+    }
+
+    .card-proti { border-color: rgba(239, 68, 68, 0.3); }
+    .card-proti.is-my-vote {
+      background-color: rgba(136, 19, 55, 0.4);
+      border-color: #f87171;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.25);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-label {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+    .card-pro .card-label { color: #34d399; }
+    .card-proti .card-label { color: #f87171; }
+
+    .my-vote-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .card-metric {
+      margin: auto 0;
+      text-align: center;
+    }
+
+    .metric-percent {
+      display: block;
+      font-size: clamp(3.5rem, 12vw, 5.5rem);
+      font-weight: 900;
+      line-height: 1;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-count {
+      display: block;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+      color: #94a3b8;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 0.6rem;
+      background-color: #1e293b;
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      transition: width 0.4s ease;
+      border-radius: 9999px;
+    }
+    .fill-pro { background-color: #10b981; }
+    .fill-proti { background-color: #ef4444; }
+
+    .total-bar-wrapper {
+      background-color: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 1rem;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .total-bar {
+      width: 100%;
+      height: 1.25rem;
+      border-radius: 0.6rem;
+      background-color: #1e293b;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .split-pro { background-color: #10b981; transition: width 0.4s ease; height: 100%; }
+    .split-proti { background-color: #ef4444; transition: width 0.4s ease; height: 100%; }
+
+    .total-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .live-dot-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .total-count {
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* UČITELSKÉ TLAČÍTKO & MODAL */
+    .teacher-toggle {
+      position: fixed;
+      bottom: 0.75rem;
+      right: 0.75rem;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background-color: rgba(30, 41, 59, 0.4);
+      color: #64748b;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+    .teacher-toggle:hover { color: #ffffff; background-color: #334155; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 100;
+    }
+
+    .modal-box {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 1.25rem;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-head h3 {
+      font-size: 1.15rem;
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+
+    .status-box {
+      background-color: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      border-radius: 0.75rem;
+      border: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .action-btn:active { transform: scale(0.98); }
+
+    .btn-red { background-color: #dc2626; color: #ffffff; }
+
+    .pin-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background-color: #020617;
+      border: 1px solid #334155;
+      border-radius: 0.75rem;
+      color: #ffffff;
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      text-align: center;
+      outline: none;
+    }
+    .pin-input:focus { border-color: #ef4444; }
+  </style>
+</head>
+<body>
+  <!-- HLASOVÁNÍ PRO STUDENTY: POUZE DVĚ VELKÁ TLAČÍTKA -->
+  <main id="voting-view" class="voting-container">
+    <button id="btn-pro" class="vote-btn btn-pro" aria-label="Hlasovat PRO">
+      <span>PRO</span>
+    </button>
+    <button id="btn-proti" class="vote-btn btn-proti" aria-label="Hlasovat PROTI">
+      <span>PROTI</span>
+    </button>
+  </main>
+
+  <!-- ŽIVÉ VÝSLEDKY PO ODHLASOVÁNÍ -->
+  <main id="results-view" class="results-container hidden">
+    <div class="cards-grid">
+      <div id="card-pro" class="result-card card-pro">
+        <div class="card-header">
+          <span class="card-label">PRO</span>
+          <span id="badge-pro" class="my-vote-badge hidden">Váš hlas</span>
+        </div>
+        <div class="card-metric">
+          <span id="percent-pro" class="metric-percent">0%</span>
+          <span id="count-pro" class="metric-count">0 hlasů</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="bar-pro" class="progress-bar-fill fill-pro" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div id="card-proti" class="result-card card-proti">
+        <div class="card-header">
+          <span class="card-label">PROTI</span>
+          <span id="badge-proti" class="my-vote-badge hidden">Váš hlas</span>
+        </div>
+        <div class="card-metric">
+          <span id="percent-proti" class="metric-percent">0%</span>
+          <span id="count-proti" class="metric-count">0 hlasů</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="bar-proti" class="progress-bar-fill fill-proti" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="total-bar-wrapper">
+      <div class="total-bar">
+        <div id="split-pro" class="split-pro" style="width: 50%"></div>
+        <div id="split-proti" class="split-proti" style="width: 50%"></div>
+      </div>
+      <div class="total-meta">
+        <span class="live-dot-label">
+          <span class="live-dot"></span> Živé výsledky
+        </span>
+        <span id="total-count" class="total-count">Celkem: 0 hlasů</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- SKRYTÉ OVLÁDÁNÍ PRO UČITELE -->
+  <button id="btn-teacher-toggle" class="teacher-toggle" title="Správa">⚙</button>
+
+  <!-- UČITELSKÁ KONZOLE -->
+  <div id="teacher-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Učitelská správa</h3>
+        <button id="btn-close-modal" class="btn-close">✕</button>
+      </div>
+
+      <div class="status-box">
+        <span style="color: #94a3b8;">Stav:</span>
+        <strong style="color: #34d399;">Příjem hlasů aktivní</strong>
+      </div>
+
+      <!-- TLAČÍTKO: SMAZAT VŠECHNA DATA -->
+      <div id="wipe-section" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <button id="btn-show-wipe" class="action-btn btn-red">
+          Smazat všechna data
+        </button>
+
+        <div id="pin-prompt" class="hidden" style="display: flex; flex-direction: column; gap: 0.5rem; background: #020617; padding: 0.75rem; border-radius: 0.75rem; border: 1px solid #dc2626;">
+          <label style="font-size: 0.8rem; color: #f87171; text-align: center;">Zadejte přístupový kód:</label>
+          <input type="password" id="input-pin" class="pin-input" maxlength="4" placeholder="••••">
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btn-confirm-wipe" class="action-btn btn-red" style="padding: 0.5rem;">Potvrdit smazání</button>
+            <button id="btn-cancel-wipe" class="action-btn" style="padding: 0.5rem; background: #334155; color: #fff;">Zrušit</button>
+          </div>
+          <div id="pin-error" class="hidden" style="color: #f87171; font-size: 0.75rem; text-align: center;">Nesprávný kód!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIREBASE FIRESTORE SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+      getFirestore,
+      doc,
+      onSnapshot,
+      runTransaction,
+      setDoc
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      projectId: "gen-lang-client-0825517834",
+      appId: "1:954063973084:web:53bd4b1e2b3cdd21cda219",
+      apiKey: atob("QUl6YVN5QzAyMklUektSZVRJM2JVUDlDNVktd2pKVmE3Y05KZ1Fz"),
+      authDomain: "gen-lang-client-0825517834.firebaseapp.com",
+      firestoreDatabaseId: "ai-studio-anonymnhlasovn-bcafe780-e8cf-4d2a-a12c-68c5af71621f",
+      storageBucket: "gen-lang-client-0825517834.firebasestorage.app",
+      messagingSenderId: "954063973084"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    const ROUND_DOC = "aktivni_hlasovani";
+
+    function getDeviceId() {
+      let id = localStorage.getItem("vote_device_id");
+      if (!id) {
+        id = "dev_" + Math.random().toString(36).substring(2, 9) + "_" + Date.now().toString(36);
+        localStorage.setItem("vote_device_id", id);
+      }
+      return id;
+    }
+    const myDeviceId = getDeviceId();
+
+    const votingView = document.getElementById("voting-view");
+    const resultsView = document.getElementById("results-view");
+    const btnPro = document.getElementById("btn-pro");
+    const btnProti = document.getElementById("btn-proti");
+
+    const percentPro = document.getElementById("percent-pro");
+    const countPro = document.getElementById("count-pro");
+    const barPro = document.getElementById("bar-pro");
+    const cardPro = document.getElementById("card-pro");
+    const badgePro = document.getElementById("badge-pro");
+
+    const percentProti = document.getElementById("percent-proti");
+    const countProti = document.getElementById("count-proti");
+    const barProti = document.getElementById("bar-proti");
+    const cardProti = document.getElementById("card-proti");
+    const badgeProti = document.getElementById("badge-proti");
+
+    const splitPro = document.getElementById("split-pro");
+    const splitProti = document.getElementById("split-proti");
+    const totalCount = document.getElementById("total-count");
+
+    const btnTeacherToggle = document.getElementById("btn-teacher-toggle");
+    const teacherModal = document.getElementById("teacher-modal");
+    const btnCloseModal = document.getElementById("btn-close-modal");
+
+    const btnShowWipe = document.getElementById("btn-show-wipe");
+    const pinPrompt = document.getElementById("pin-prompt");
+    const inputPin = document.getElementById("input-pin");
+    const btnConfirmWipe = document.getElementById("btn-confirm-wipe");
+    const btnCancelWipe = document.getElementById("btn-cancel-wipe");
+    const pinError = document.getElementById("pin-error");
+
+    async function castVote(choice) {
+      btnPro.disabled = true;
+      btnProti.disabled = true;
+      if ("vibrate" in navigator) {
+        try { navigator.vibrate(40); } catch (_) {}
+      }
+
+      const roundRef = doc(db, "rounds", ROUND_DOC);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(roundRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
+
+          const votes = data.votes || {};
+          if (votes[myDeviceId]) return;
+
+          votes[myDeviceId] = { choice, timestamp: Date.now() };
+          const newPro = choice === "pro" ? (data.pro || 0) + 1 : (data.pro || 0);
+          const newProti = choice === "proti" ? (data.proti || 0) + 1 : (data.proti || 0);
+          const newTotal = (data.total || 0) + 1;
+
+          transaction.update(roundRef, { votes, pro: newPro, proti: newProti, total: newTotal, updatedAt: Date.now() });
+        });
+      } catch (err) {
+        console.error("Chyba při hlasování:", err);
+      }
+    }
+
+    function renderState(round) {
+      const myVote = round.votes?.[myDeviceId]?.choice || null;
+
+      if (!myVote) {
+        votingView.classList.remove("hidden");
+        resultsView.classList.add("hidden");
+        btnPro.disabled = false;
+        btnProti.disabled = false;
+      } else {
+        votingView.classList.add("hidden");
+        resultsView.classList.remove("hidden");
+
+        const total = round.total || 0;
+        const pro = round.pro || 0;
+        const proti = round.proti || 0;
+
+        const pctPro = total > 0 ? Math.round((pro / total) * 100) : 0;
+        const pctProti = total > 0 ? Math.round((proti / total) * 100) : 0;
+
+        percentPro.innerText = pctPro + "%";
+        countPro.innerText = pro + (pro === 1 ? " hlas" : pro >= 2 && pro <= 4 ? " hlasy" : " hlasů");
+        barPro.style.width = pctPro + "%";
+
+        percentProti.innerText = pctProti + "%";
+        countProti.innerText = proti + (proti === 1 ? " hlas" : proti >= 2 && proti <= 4 ? " hlasy" : " hlasů");
+        barProti.style.width = pctProti + "%";
+
+        splitPro.style.width = (total > 0 ? (pro / total) * 100 : 50) + "%";
+        splitProti.style.width = (total > 0 ? (proti / total) * 100 : 50) + "%";
+        totalCount.innerText = "Celkem: " + total + (total === 1 ? " hlas" : " hlasů");
+
+        if (myVote === "pro") {
+          cardPro.classList.add("is-my-vote");
+          cardProti.classList.remove("is-my-vote");
+          badgePro.classList.remove("hidden");
+          badgeProti.classList.add("hidden");
+        } else if (myVote === "proti") {
+          cardProti.classList.add("is-my-vote");
+          cardPro.classList.remove("is-my-vote");
+          badgeProti.classList.remove("hidden");
+          badgePro.classList.add("hidden");
+        } else {
+          cardPro.classList.remove("is-my-vote");
+          cardProti.classList.remove("is-my-vote");
+          badgePro.classList.add("hidden");
+          badgeProti.classList.add("hidden");
+        }
+      }
+    }
+
+    const roundDocRef = doc(db, "rounds", ROUND_DOC);
+    onSnapshot(roundDocRef, async (snap) => {
+      if (!snap.exists()) {
+        const fresh = { pro: 0, proti: 0, total: 0, votes: {}, updatedAt: Date.now() };
+        await setDoc(roundDocRef, fresh);
+        renderState(fresh);
+      } else {
+        renderState(snap.data());
+      }
+    });
+
+    async function wipeData() {
+      const fresh = { pro: 0, proti: 0, total: 0, votes: {}, updatedAt: Date.now() };
+      await setDoc(roundDocRef, fresh);
+      teacherModal.classList.add("hidden");
+      pinPrompt.classList.add("hidden");
+      inputPin.value = "";
+    }
+
+    btnPro.addEventListener("click", () => castVote("pro"));
+    btnProti.addEventListener("click", () => castVote("proti"));
+
+    btnTeacherToggle.addEventListener("click", () => {
+      teacherModal.classList.toggle("hidden");
+      pinPrompt.classList.add("hidden");
+      inputPin.value = "";
+      pinError.classList.add("hidden");
+    });
+    btnCloseModal.addEventListener("click", () => teacherModal.classList.add("hidden"));
+
+    btnShowWipe.addEventListener("click", () => {
+      pinPrompt.classList.remove("hidden");
+      inputPin.focus();
+    });
+    btnCancelWipe.addEventListener("click", () => {
+      pinPrompt.classList.add("hidden");
+      inputPin.value = "";
+      pinError.classList.add("hidden");
+    });
+
+    const PIN_HASH = "0985b889a1fe4f4e1fb925061ac6fb2247f10875f5fcbe63eec2ab55ed68970e";
+    async function verifyPin(val) {
+      const enc = new TextEncoder().encode(val.trim());
+      const buf = await crypto.subtle.digest("SHA-256", enc);
+      return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("") === PIN_HASH;
+    }
+
+    btnConfirmWipe.addEventListener("click", async () => {
+      const isValid = await verifyPin(inputPin.value);
+      if (isValid) {
+        pinError.classList.add("hidden");
+        wipeData();
+      } else {
+        pinError.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>
